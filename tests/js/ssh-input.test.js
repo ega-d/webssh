@@ -341,6 +341,27 @@ test('bracketed paste payload passes through send byte-identical', async () => {
     assert.equal(emitted.join(''), '\x1b[200~a\nb\x1b[201~');
 });
 
+test('prompt submission sends one Enter outside the paste when the terminal supports it', async () => {
+    const emitted = [];
+    const transport = loadSSHInput({
+        emit(_event, payload, acknowledgement) {
+            emitted.push(payload.data);
+            acknowledgement?.({success: true});
+        },
+    }, 8);
+    const terminal = {modes: {bracketedPasteMode: true}};
+
+    assert.equal(await transport.sendPrompt('s', 'first\nsecond', terminal), true);
+    console.info('Bracketed prompt chunks end the paste before the final Enter:', JSON.stringify(emitted));
+    assert.equal(emitted.join(''), '\x1b[200~first\rsecond\x1b[201~\r');
+
+    emitted.length = 0;
+    terminal.modes.bracketedPasteMode = false;
+    assert.equal(await transport.sendPrompt('s', 'pwd', terminal), true);
+    console.info('Plain terminal receives:', JSON.stringify(emitted));
+    assert.deepEqual(emitted, ['pwd\r']);
+});
+
 test('tiny-limit multibyte paste rejoins normalized with no lone surrogate', async () => {
     const delivered = [];
     const transport = loadSSHInput({

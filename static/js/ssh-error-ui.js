@@ -78,5 +78,13 @@
         };
     }
 
-    return Object.freeze({ describeSSHError, safeAppRoot });
+    function isSessionUnavailable(data) {
+        return Boolean(data?.session_id && (
+            data.error === 'Session not found'
+            || data.error === 'Session not connected'
+            || data.error === 'Unauthorized access to session'
+        ));
+    }
+
+    return Object.freeze({ describeSSHError, isSessionUnavailable, safeAppRoot });
 }));

@@ -12,7 +12,11 @@ function setup(session) {
         getSession: () => session,
         updateSessionStatus(_id, status) { if (session) session.connected = status !== 'disconnected'; },
     };
-    vm.runInNewContext(source.slice(source.indexOf("    socket.on('ssh_disconnected'"), source.indexOf("    socket.on('session_timeout_warning'")), {
+    const helper = source.slice(source.indexOf('    function markSSHSessionDisconnected('),
+        source.indexOf("    socket.on('ssh_error'"));
+    const onDisconnect = source.slice(source.indexOf("    socket.on('ssh_disconnected'"),
+        source.indexOf("    socket.on('session_timeout_warning'"));
+    vm.runInNewContext(helper + onDisconnect, {
         socket: {on(_name, fn) {handler = fn;}},
         cancelledSessionIds: new Set(), SessionManager: manager,
         showNotification: (...args) => notices.push(args),

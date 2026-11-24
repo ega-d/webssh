@@ -121,13 +121,14 @@
             }
             return true;
         } catch (error) {
+            if (queue.error) return false;
             cancelQueue(queue, error.message);
             notifyFailure(error.message);
             return false;
         }
     }
 
-    function send(sessionId, value) {
+    function send(sessionId, value, {requireAcknowledgement = false} = {}) {
         const socket = observeSocket();
         if (!sessionId || typeof value !== 'string' || !value) return Promise.resolve(false);
         root.SessionDirectorySync?.noteInput(sessionId, value);
@@ -145,7 +146,7 @@
             return Promise.resolve(false);
         }
         let queue = sessionQueues.get(sessionId);
-        if (!queue && chunks.length === 1) {
+        if (!queue && chunks.length === 1 && !requireAcknowledgement) {
             try {
                 socket.emit('ssh_input', {session_id: sessionId, data: chunks[0]});
                 return Promise.resolve(true);
@@ -174,10 +175,21 @@
         return send(sessionId, typeof value === 'string' ? normalizeNewlines(value) : value);
     }
 
+    function sendPrompt(sessionId, value, terminal) {
+        if (typeof value !== 'string' || !value) return Promise.resolve(false);
+        const text = normalizeNewlines(value);
+        // Send Enter outside the paste so the program receives it as a submit key.
+        const input = terminal?.modes?.bracketedPasteMode
+            ? '\x1b[200~' + text + '\x1b[201~'
+            : text;
+        return send(sessionId, input + '\r', {requireAcknowledgement: true});
+    }
+
     root.SSHInput = Object.freeze({
         byteChunks,
         send,
         sendText,
+        sendPrompt,
         cancelSession,
         hasPending: sessionId => sessionQueues.has(sessionId),
         CHUNK_BYTES,

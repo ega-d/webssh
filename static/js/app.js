@@ -1856,6 +1856,12 @@
         TerminalManager.handleSocketOutput(data, acknowledge);
     });
 
+    function markSSHSessionDisconnected(sessionId) {
+        window.SSHInput?.cancelSession?.(sessionId);
+        SessionManager.updateSessionStatus(sessionId, 'disconnected');
+        window.sftpFileManager?.handleSessionDisconnected(sessionId);
+    }
+
     socket.on('ssh_error', (data) => {
         const requestId = typeof data?.client_request_id === 'string'
             ? data.client_request_id
@@ -1880,6 +1886,15 @@
             requestId && requestId.startsWith('reconnect_')
         );
         if (requestId && !isCurrentRequest && !isReconnectRequest) {
+            return;
+        }
+
+        if (!requestId && window.SSHErrorUI?.isSessionUnavailable(data)) {
+            if (!SessionManager.getSession(data.session_id)?.connected) return;
+            markSSHSessionDisconnected(data.session_id);
+            const key = 'session.disconnectedDescription';
+            const message = window.i18n?.t?.(key);
+            showNotification(message && message !== key ? message : 'Reconnect to resume your work.', 'warning');
             return;
         }
 
@@ -1915,11 +1930,7 @@
         if (session?.connected) {
             showNotification(`Session disconnected: ${data.reason}`, 'warning');
         }
-        SessionManager.updateSessionStatus(data.session_id, 'disconnected');
-
-        if (window.sftpFileManager) {
-            window.sftpFileManager.handleSessionDisconnected(data.session_id);
-        }
+        markSSHSessionDisconnected(data.session_id);
     });
 
     socket.on('session_timeout_warning', (data) => {
@@ -2746,9 +2757,10 @@
                 let sent = attachment ? await attachment : false;
                 if (!attachment && window.socket?.connected === true) {
                     if (submitted) {
-                        const binding = window.TerminalPasteGuard?.capture(active);
+                        const terminal = SessionManager.getActiveTerminal();
+                        const binding = window.TerminalPasteGuard?.capture(active, terminal);
                         sent = await window.TerminalPasteGuard?.review(binding, submitted,
-                            value => window.SSHInput?.sendText(active, value + '\r'));
+                            value => window.SSHInput?.sendPrompt(active, value, terminal));
                     } else if (SessionManager.getSession(active)?.connected) {
                         window.SSHInput?.send(active, '\r');
                     }
@@ -2769,9 +2781,14 @@
                 const binding = window.TerminalPasteGuard.capture(active, TerminalManager.terminals[active]);
                 window.TerminalPasteGuard.paste(binding, text);
             });
-            mobileInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                    e.preventDefault();
+            mobileInput.addEventListener('keydown', event => {
+                if (event.key !== 'Enter' || event.isComposing) return;
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    mobileInput.setRangeText('\n', mobileInput.selectionStart, mobileInput.selectionEnd, 'end');
+                    mobileInput.dispatchEvent(new Event('input', {bubbles: true}));
+                } else if (!event.shiftKey) {
+                    event.preventDefault();
                     sendMobileInput();
                 }
             });

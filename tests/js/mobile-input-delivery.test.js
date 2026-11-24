@@ -11,8 +11,9 @@ function setup(send, connected = true) {
     const end = source.indexOf('\n        if (mobileInput)', start);
     const session = {id: 's', host: 'alpha.example', username: 'ops', connected};
     const elements = new Map();
-    const context = {mobileInput: {value: 'original'}, SessionManager: {getActiveSession: () => 's', getSession: () => session},
-        window: {socket: {connected}, SSHInput: {sendText: send}},
+    const context = {mobileInput: {value: 'original'}, SessionManager: {
+        getActiveSession: () => 's', getSession: () => session, getActiveTerminal: () => null,
+    }, window: {socket: {connected}, SSHInput: {sendPrompt: send}},
         document: {
             addEventListener(event, callback) { if (event === 'DOMContentLoaded') callback(); },
             getElementById(id) {
@@ -44,7 +45,7 @@ test('repeated mobile submit cannot duplicate an in-flight command and failures 
     assert.equal(calls, 1);
     finish(false);
     await Promise.all([pending, repeated]);
-    context.window.SSHInput.sendText = async () => { calls++; return true; };
+    context.window.SSHInput.sendPrompt = async () => { calls++; return true; };
     await context.send();
     assert.equal(calls, 2);
     assert.equal(context.mobileInput.value, '');
@@ -58,7 +59,7 @@ test('successful mobile delivery clears only the submitted text', async () => {
     acknowledge(true);
     await pending;
     assert.equal(context.mobileInput.value, 'new text');
-    context.window.SSHInput.sendText = async () => true;
+    context.window.SSHInput.sendPrompt = async () => true;
     await context.send();
     assert.equal(context.mobileInput.value, '');
 });
@@ -72,7 +73,7 @@ test('mobile multiline submit sends through text transport only after review', a
     assert.equal(context.document.getElementById('terminalPasteDialog').open, true);
     await context.document.getElementById('terminalPasteConfirm').listeners.click();
     await pending;
-    assert.deepEqual(delivered, [['s', 'first\nsecond\r']]);
+    assert.deepEqual(delivered, [['s', 'first\nsecond']]);
 });
 
 test('cancelled mobile review preserves the draft and sends nothing', async () => {

@@ -56,6 +56,60 @@ test('safe single-line paste stays fast and confirmed paste preserves bracketed 
     expect((await inputs(page)).map(item => item.data)).toEqual(['pwd', '\u001b[200~one\rtwo\u001b[201~']);
 });
 
+test('composer Ctrl+Enter edits the draft and Enter submits after the paste', async ({page}) => {
+    await page.setViewportSize({width: 393, height: 820});
+    await setup(page);
+    await page.locator('#mobileCommandToggle').click();
+    await page.evaluate(() => new Promise(resolve => {
+        SessionManager.getActiveTerminal().write('\u001b[?2004h', resolve);
+    }));
+    const input = page.locator('#mobileInput');
+    await input.fill('first');
+    await input.press('End');
+    await input.press('Control+Enter');
+    await expect(input).toHaveValue('first\n');
+    expect(await inputs(page)).toEqual([]);
+    console.info('Ctrl+Enter inserted LF without sending SSH input');
+    await input.pressSequentially('second');
+    await input.press('Enter');
+    await page.locator('#terminalPasteConfirm').click();
+    await expect(input).toHaveValue('');
+    const delivered = (await inputs(page)).map(item => item.data);
+    console.info('Enter submitted one bracketed prompt:', JSON.stringify(delivered));
+    expect(delivered).toEqual(['\u001b[200~first\rsecond\u001b[201~\r']);
+});
+
+test('a stale terminal stops sending and shows one reconnect notice without losing the draft', async ({page}) => {
+    await page.setViewportSize({width: 393, height: 820});
+    await setup(page);
+    await page.locator('#mobileCommandToggle').click();
+    await page.evaluate(() => {
+        const emit = window.socket.emit.bind(window.socket);
+        window.socket.emit = (event, payload, ...rest) => {
+            if (event !== 'ssh_input' || payload.session_id !== 'safe-one') {
+                return emit(event, payload, ...rest);
+            }
+            window.__terminalInputs.push(payload);
+            const error = {session_id: 'safe-one', error: 'Session not found', success: false};
+            for (let index = 0; index < 12; index++) {
+                window.socket.listeners('ssh_error').forEach(listener => listener(error));
+            }
+            rest.find(value => typeof value === 'function')?.(error);
+            return window.socket;
+        };
+    });
+    const input = page.locator('#mobileInput');
+    await input.fill('keep this prompt');
+    await input.press('Enter');
+    await expect(page.locator('#terminal-safe-one .session-overlay')).toBeVisible();
+    await expect(page.locator('#notificationContainer .notification-warning')
+        .filter({hasText: 'Reconnect to resume your work.'})).toHaveCount(1);
+    await expect(input).toHaveValue('keep this prompt');
+    await page.evaluate(() => TerminalManager.terminals['safe-one'].input('extra input', true));
+    expect(await inputs(page)).toHaveLength(1);
+    console.info('Twelve missing-session errors produced one reconnect notice and preserved the draft.');
+});
+
 test('switching away and back cancels pending paste instead of retargeting', async ({page}) => {
     await setup(page);
     await connect(page, 'safe-two', 'beta.example');
