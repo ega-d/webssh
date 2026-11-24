@@ -341,6 +341,56 @@ test('bracketed paste payload passes through send byte-identical', async () => {
     assert.equal(emitted.join(''), '\x1b[200~a\nb\x1b[201~');
 });
 
+test('prompt submission sends one bounded frame and one Enter outside the paste', async () => {
+    const emitted = [];
+    const transport = loadSSHInput({
+        emit(_event, payload, acknowledgement) {
+            emitted.push(payload.data);
+            acknowledgement?.({success: true});
+        },
+    }, 64);
+    const terminal = {modes: {bracketedPasteMode: true}};
+
+    assert.equal(await transport.sendPrompt('s', 'first\nsecond', terminal), true);
+    console.info('Bracketed prompt chunks end the paste before the final Enter:', JSON.stringify(emitted));
+    assert.deepEqual(emitted, ['\x1b[200~first\rsecond\x1b[201~\r']);
+
+    emitted.length = 0;
+    terminal.modes.bracketedPasteMode = false;
+    assert.equal(await transport.sendPrompt('s', 'pwd', terminal), true);
+    console.info('Plain terminal receives:', JSON.stringify(emitted));
+    assert.deepEqual(emitted, ['pwd\r']);
+});
+
+test('oversized and already framed composer prompts emit no SSH input', async () => {
+    const emitted = [];
+    const transport = loadSSHInput({
+        emit(_event, payload, ack) {
+            emitted.push(payload.data);
+            ack({success: true});
+        },
+    }, 16);
+    const terminal = {modes: {bracketedPasteMode: true}};
+
+    assert.equal(await transport.sendPrompt('s', 'éab', terminal), false);
+    assert.equal(await transport.sendPrompt('s', 'x\x1b[201~', terminal), false);
+    assert.deepEqual(emitted, []);
+    console.info('Rejected oversized and pre-framed prompts before writing any bytes.');
+    assert.equal(await transport.sendPrompt('s', 'éa', terminal), true);
+    assert.deepEqual(emitted, ['\x1b[200~éa\x1b[201~\r']);
+    console.info('Accepted the prompt at the UTF-8 frame limit.');
+});
+
+test('composer submission requires an explicit successful acknowledgement', async () => {
+    for (const response of [undefined, {}, {success: false}, {success: 'true'}]) {
+        const transport = loadSSHInput({
+            emit(_event, _payload, ack) { ack(response); },
+        });
+        assert.equal(await transport.sendPrompt('s', 'fixture', null), false);
+    }
+    console.info('Missing, malformed and explicitly failed input acknowledgements rejected delivery.');
+});
+
 test('tiny-limit multibyte paste rejoins normalized with no lone surrogate', async () => {
     const delivered = [];
     const transport = loadSSHInput({

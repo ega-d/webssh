@@ -142,6 +142,7 @@ function loadAppSocketHarness() {
     for (const filename of [
         'socket-reconnect-policy.js',
         'socket-protocol.js',
+        'ssh-session-recovery.js',
         'app.js',
     ]) {
         vm.runInContext(

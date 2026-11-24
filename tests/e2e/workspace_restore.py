@@ -44,6 +44,18 @@ def register_workspace_restore(socketio):
     }, None))
 
     class Channel:
+        def __init__(self, interrupt_input):
+            self.interrupt_input = interrupt_input
+            self.input_started = False
+
+        def send(self, data):
+            if not self.interrupt_input:
+                return len(data)
+            if self.input_started:
+                return 0
+            self.input_started = True
+            return min(7, len(data))
+
         def resize_pty(self, **_kwargs):
             pass
 
@@ -55,7 +67,8 @@ def register_workspace_restore(socketio):
         if not current_user.is_authenticated:
             return {'ok': False}
         count = data.get('count', 1)
-        if type(count) is not int or not 0 <= count <= 12:
+        interrupt_input = data.get('interrupt_input', False)
+        if type(count) is not int or not 0 <= count <= 12 or type(interrupt_input) is not bool:
             return {'ok': False}
         # Replace only this test user's fixture sessions, never other test state.
         for session_id, owner in list(fixture_owners.items()):
@@ -81,7 +94,7 @@ def register_workspace_restore(socketio):
                 ssh_manager.sessions[session_id] = {
                     'host': 'reload-fixture.local', 'port': 22, 'username': 'fixture',
                     'connected': True, 'user_id': current_user.id, 'client': None,
-                    'channel': Channel(), 'last_activity': time.time(),
+                    'channel': Channel(interrupt_input), 'last_activity': time.time(),
                     'output_buffer': ['restore fixture ready\r\n$ '], 'output_sequence': 1,
                 }
             db.session.add(SSHSession(session_id=session_id, user_id=current_user.id,
@@ -89,3 +102,12 @@ def register_workspace_restore(socketio):
             ids.append(session_id)
         db.session.commit()
         return {'ok': True, 'session_ids': ids}
+
+    @socketio.on('e2e_workspace_drop')
+    def drop(data):
+        session_id = data.get('session_id')
+        if not current_user.is_authenticated or fixture_owners.get(session_id) != current_user.id:
+            return {'ok': False}
+        with ssh_manager.sessions_lock:
+            dropped = ssh_manager.sessions.pop(session_id, None)
+        return {'ok': dropped is not None}

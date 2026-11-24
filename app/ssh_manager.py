@@ -38,6 +38,8 @@ sessions_lock = Lock()
 TMUX_KILL_TIMEOUT = 2.0
 TMUX_PROBE_TIMEOUT = 2.0
 SSH_AUTH_BANNER_MAX_CHARS = 16 * 1024
+BRACKETED_PASTE_START = b'\x1b[200~'
+BRACKETED_PASTE_SUBMIT = b'\x1b[201~\r'
 
 
 @dataclass(frozen=True)
@@ -674,6 +676,7 @@ def create_ssh_connection(host, port, username, password=None, key_path=None, ke
             sessions[session_id] = {
                 'client': client,
                 'channel': channel,
+                'input_lock': Lock(),
                 'host': host,
                 'port': port,
                 'username': username,
@@ -1047,6 +1050,30 @@ def read_ssh_output(session_id, socketio_instance, app, cancel_event=None, disco
 
         close_session(session_id)
 
+def _send_complete_input(session_id, channel, payload, cancel_event):
+    written = 0
+    error = None
+    try:
+        while written < len(payload):
+            if cancel_event is not None and cancel_event.is_set():
+                error = "Connection cancelled"
+                break
+            sent = channel.send(payload[written:])
+            if not isinstance(sent, int) or not 0 < sent <= len(payload) - written:
+                error = "Failed to send SSH input"
+                break
+            written += sent
+    except Exception as exc:
+        error = str(exc) or "Failed to send SSH input"
+    if error is None:
+        return True, None
+    if written and payload.startswith(BRACKETED_PASTE_START) and payload.endswith(BRACKETED_PASTE_SUBMIT):
+        # The live remote editor may still be interpreting bytes as part of the paste.
+        close_session(session_id)
+        return False, "Session not connected"
+    return False, error
+
+
 def send_ssh_input(
     session_id,
     data,
@@ -1072,23 +1099,27 @@ def send_ssh_input(
             if not session['connected']:
                 return False, "Session not connected"
 
-            channel = session['channel']
-            # Before sending: the shell may answer with its next prompt at once.
-            _note_prompt_input(session, data)
+            input_lock = session.get('input_lock')
+            if input_lock is None:
+                input_lock = session['input_lock'] = Lock()
 
-        if require_complete:
-            remaining = data.encode('utf-8') if isinstance(data, str) else data
-            while remaining:
+        with input_lock:
+            with sessions_lock:
+                if sessions.get(session_id) is not session or not session['connected']:
+                    return False, "Session not connected"
+                channel = session['channel']
+                # Before sending: the shell may answer with its next prompt at once.
+                _note_prompt_input(session, data)
+
+            if require_complete:
+                payload = data.encode('utf-8') if isinstance(data, str) else data
+                success, error = _send_complete_input(session_id, channel, payload, cancel_event)
+                if not success:
+                    return False, error
+            else:
                 if cancel_event is not None and cancel_event.is_set():
                     return False, "Connection cancelled"
-                sent = channel.send(remaining)
-                if not isinstance(sent, int) or sent <= 0:
-                    return False, "Failed to send SSH input"
-                remaining = remaining[sent:]
-        else:
-            if cancel_event is not None and cancel_event.is_set():
-                return False, "Connection cancelled"
-            channel.send(data)
+                channel.send(data)
 
         with sessions_lock:
             if session_id in sessions:

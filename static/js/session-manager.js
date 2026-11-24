@@ -230,7 +230,7 @@ const SessionManager = {
         });
         TerminalManager.attachTerminal(session_id, terminalId);
         TerminalManager.setupInputHandler(session_id, (data) => {
-            if (window.socket) {
+            if (window.socket?.connected && this.sessions[session_id]?.connected) {
                 // Filter out Device Attributes responses (ESC[c sequences only).
                 // Bare-pattern regexes were removed because they corrupt legitimate input.
                 data = data.replace(/\x1b\[[?>]?[0-9;]*c/g, '');

@@ -2062,6 +2062,7 @@ def handle_ssh_input(data, current_user=None):
             payload = {
                 'success': False,
                 'error': 'Unauthorized access to session',
+                'code': 'ssh_session_unavailable',
                 'session_id': session_id,
             }
             emit('ssh_error', payload)
@@ -2095,6 +2096,8 @@ def handle_ssh_input(data, current_user=None):
                 'error': error,
                 'session_id': session_id,
             }
+            if error in {'Session not found', 'Session not connected'}:
+                payload['code'] = 'ssh_session_unavailable'
             emit('ssh_error', payload)
             return payload
         return {'success': bool(success)}

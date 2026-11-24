@@ -1856,6 +1856,15 @@
         TerminalManager.handleSocketOutput(data, acknowledge);
     });
 
+    const sshSessionRecovery = window.SSHSessionRecovery.create({
+        sessions: SessionManager,
+        cancelInput: id => window.SSHInput?.cancelSession(id),
+        disconnectFiles: id => window.sftpFileManager?.handleSessionDisconnected(id),
+        notify: message => showNotification(message, 'warning'),
+        disconnectedMessage: reason => `Session disconnected: ${reason}`,
+        unavailableMessage: () => window.i18n.t('session.disconnectedDescription'),
+    });
+
     socket.on('ssh_error', (data) => {
         const requestId = typeof data?.client_request_id === 'string'
             ? data.client_request_id
@@ -1882,6 +1891,8 @@
         if (requestId && !isCurrentRequest && !isReconnectRequest) {
             return;
         }
+
+        if (!requestId && sshSessionRecovery.handleUnavailable(data)) return;
 
         const presentation = window.SSHErrorUI?.describeSSHError?.(
             data,
@@ -1911,15 +1922,7 @@
         if (cancelledSessionIds.delete(data.session_id)) {
             return;
         }
-        const session = SessionManager.getSession(data.session_id);
-        if (session?.connected) {
-            showNotification(`Session disconnected: ${data.reason}`, 'warning');
-        }
-        SessionManager.updateSessionStatus(data.session_id, 'disconnected');
-
-        if (window.sftpFileManager) {
-            window.sftpFileManager.handleSessionDisconnected(data.session_id);
-        }
+        sshSessionRecovery.handleDisconnected(data);
     });
 
     socket.on('session_timeout_warning', (data) => {
@@ -2735,29 +2738,14 @@
         const mobileInput = document.getElementById('mobileInput');
         const mobileSendBtn = document.getElementById('mobileSendBtn');
 
-        let mobileSendPending = false;
-        const sendMobileInput = async () => {
-            const active = SessionManager.getActiveSession();
-            if (mobileSendPending || !active) return;
-            const submitted = mobileInput.value;
-            mobileSendPending = true;
-            try {
-                const attachment = window.TerminalComposerAttachment?.send(active, submitted);
-                let sent = attachment ? await attachment : false;
-                if (!attachment && window.socket?.connected === true) {
-                    if (submitted) {
-                        const binding = window.TerminalPasteGuard?.capture(active);
-                        sent = await window.TerminalPasteGuard?.review(binding, submitted,
-                            value => window.SSHInput?.sendText(active, value + '\r'));
-                    } else if (SessionManager.getSession(active)?.connected) {
-                        window.SSHInput?.send(active, '\r');
-                    }
-                }
-                if (sent && mobileInput.value === submitted) mobileInput.value = '';
-            } finally {
-                mobileSendPending = false;
-            }
-        };
+        const sendMobileInput = window.TerminalComposer.createSubmit({
+            input: mobileInput,
+            sessions: SessionManager,
+            connected: () => window.socket?.connected === true,
+            sendAttachment: (id, text) => window.TerminalComposerAttachment?.send(id, text),
+            pasteGuard: window.TerminalPasteGuard,
+            transport: window.SSHInput,
+        });
 
         if (mobileInput) {
             // Review multiline terminal pastes before they can execute commands.
@@ -2769,9 +2757,14 @@
                 const binding = window.TerminalPasteGuard.capture(active, TerminalManager.terminals[active]);
                 window.TerminalPasteGuard.paste(binding, text);
             });
-            mobileInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                    e.preventDefault();
+            mobileInput.addEventListener('keydown', event => {
+                if (event.key !== 'Enter' || event.isComposing) return;
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    mobileInput.setRangeText('\n', mobileInput.selectionStart, mobileInput.selectionEnd, 'end');
+                    mobileInput.dispatchEvent(new Event('input', {bubbles: true}));
+                } else if (!event.shiftKey) {
+                    event.preventDefault();
                     sendMobileInput();
                 }
             });

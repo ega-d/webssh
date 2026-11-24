@@ -25,6 +25,7 @@ function loadBrowserErrorHandler(errors) {
         ConnectionLauncher: {
             createConnectionLauncher: () => ({ launch() {} }),
         },
+        SessionManager: {},
         console: {
             error: (...args) => errors.push(args),
             log() {},
@@ -47,6 +48,7 @@ function loadBrowserErrorHandler(errors) {
         fs.readFileSync('static/js/socket-protocol.js', 'utf8'),
         context
     );
+    vm.runInContext(fs.readFileSync('static/js/ssh-session-recovery.js', 'utf8'), context);
     vm.runInContext(fs.readFileSync('static/js/app.js', 'utf8'), context);
     return handlers.get('error');
 }

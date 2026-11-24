@@ -1,24 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
+const {create} = require('../../static/js/ssh-session-recovery.js');
 
 function setup(session) {
-    const source = fs.readFileSync(path.join(__dirname, '../../static/js/app.js'), 'utf8');
-    const notices = [], cleaned = [];
-    let handler;
-    const manager = {
-        getSession: () => session,
-        updateSessionStatus(_id, status) { if (session) session.connected = status !== 'disconnected'; },
-    };
-    vm.runInNewContext(source.slice(source.indexOf("    socket.on('ssh_disconnected'"), source.indexOf("    socket.on('session_timeout_warning'")), {
-        socket: {on(_name, fn) {handler = fn;}},
-        cancelledSessionIds: new Set(), SessionManager: manager,
-        showNotification: (...args) => notices.push(args),
-        window: {sftpFileManager: {handleSessionDisconnected: id => cleaned.push(id)}},
+    const notices = [], cleaned = [], cancelled = [];
+    const recovery = create({
+        sessions: {
+            getSession: () => session,
+            updateSessionStatus(_id, status) { if (session) session.connected = status !== 'disconnected'; },
+        },
+        cancelInput: id => cancelled.push(id),
+        disconnectFiles: id => cleaned.push(id),
+        notify: message => notices.push(message),
+        disconnectedMessage: reason => reason,
+        unavailableMessage: () => 'Reconnect',
     });
-    return {handler, notices, cleaned};
+    return {handler: recovery.handleDisconnected, handleUnavailable: recovery.handleUnavailable, notices, cleaned, cancelled};
 }
 
 test('disconnect acknowledgements do not warn after the user has closed a session', () => {
@@ -37,4 +34,19 @@ test('unexpected disconnect warns once while still updating session and file sta
     assert.equal(notices.length, 1);
     assert.equal(session.connected, false);
     assert.equal(cleaned.length, 2);
+});
+
+test('a typed stale SSH error cancels the input and files exactly once', () => {
+    const session = {connected: true};
+    const {handleUnavailable, notices, cleaned, cancelled} = setup(session);
+    assert.equal(handleUnavailable({session_id: 'live', code: 'ssh_input_backpressure'}), false);
+    assert.equal(session.connected, true);
+    const stale = {session_id: 'live', code: 'ssh_session_unavailable'};
+    assert.equal(handleUnavailable(stale), true);
+    assert.equal(handleUnavailable(stale), true);
+    assert.equal(session.connected, false);
+    assert.deepEqual(notices, ['Reconnect']);
+    assert.deepEqual(cleaned, ['live']);
+    assert.deepEqual(cancelled, ['live']);
+    console.info('Stale session cancelled queued input and cleaned file state once.');
 });

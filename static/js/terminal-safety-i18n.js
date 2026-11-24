@@ -21,6 +21,8 @@
             "terminalSafety.trim": "Remove trailing line breaks",
             "terminalSafety.removeLineBreaks": "Remove line breaks",
             "terminalSafety.pasteConfirm": "Paste to this terminal",
+            "terminalSafety.promptPasteMarkers": "The prompt contains terminal paste markers. Remove them before sending.",
+            "terminalSafety.promptTooLarge": "The prompt is too large to send at once. Shorten it and try again.",
             "terminalSafety.changed": "Session changed. Nothing was pasted; try again in the intended session."
         },
         "de": {
@@ -43,6 +45,8 @@
             "terminalSafety.trim": "Abschließende Zeilenumbrüche entfernen",
             "terminalSafety.removeLineBreaks": "Zeilenumbrüche entfernen",
             "terminalSafety.pasteConfirm": "In dieses Terminal einfügen",
+            "terminalSafety.promptPasteMarkers": "Die Eingabe enthält Terminal-Einfügemarkierungen. Entferne sie vor dem Senden.",
+            "terminalSafety.promptTooLarge": "Die Eingabe ist zu groß für eine einzelne Übertragung. Kürze sie und versuche es erneut.",
             "terminalSafety.changed": "Sitzung geändert. Es wurde nichts eingefügt. Im gewünschten Terminal erneut versuchen."
         },
         "fr": {
@@ -65,6 +69,8 @@
             "terminalSafety.trim": "Supprimer les sauts de ligne finaux",
             "terminalSafety.removeLineBreaks": "Supprimer les sauts de ligne",
             "terminalSafety.pasteConfirm": "Coller dans ce terminal",
+            "terminalSafety.promptPasteMarkers": "La saisie contient des marqueurs de collage du terminal. Supprimez-les avant l’envoi.",
+            "terminalSafety.promptTooLarge": "La saisie est trop longue pour un seul envoi. Raccourcissez-la et réessayez.",
             "terminalSafety.changed": "La session a changé. Rien n’a été collé ; réessayez dans la session souhaitée."
         },
         "es": {
@@ -87,6 +93,8 @@
             "terminalSafety.trim": "Eliminar saltos de línea finales",
             "terminalSafety.removeLineBreaks": "Eliminar saltos de línea",
             "terminalSafety.pasteConfirm": "Pegar en este terminal",
+            "terminalSafety.promptPasteMarkers": "La entrada contiene marcas de pegado del terminal. Elimínelas antes del envío.",
+            "terminalSafety.promptTooLarge": "La entrada es demasiado larga para un solo envío. Acórtela y vuelva a intentarlo.",
             "terminalSafety.changed": "La sesión ha cambiado. No se pegó nada; inténtelo en la sesión deseada."
         },
         "vi": {
@@ -109,6 +117,8 @@
             "terminalSafety.trim": "Bỏ các dòng mới ở cuối",
             "terminalSafety.removeLineBreaks": "Xóa dấu xuống dòng",
             "terminalSafety.pasteConfirm": "Dán vào terminal này",
+            "terminalSafety.promptPasteMarkers": "Nội dung nhập chứa dấu đánh dấu dán của terminal. Hãy xóa chúng trước khi gửi.",
+            "terminalSafety.promptTooLarge": "Nội dung nhập quá dài để gửi cùng lúc. Hãy rút ngắn rồi thử lại.",
             "terminalSafety.changed": "Phiên đã thay đổi. Chưa dán nội dung; hãy thử lại trong phiên mong muốn."
         },
         "zh": {
@@ -131,6 +141,8 @@
             "terminalSafety.trim": "删除末尾换行",
             "terminalSafety.removeLineBreaks": "删除换行",
             "terminalSafety.pasteConfirm": "粘贴到此终端",
+            "terminalSafety.promptPasteMarkers": "输入包含终端粘贴标记。请移除标记后再发送。",
+            "terminalSafety.promptTooLarge": "输入太长，无法一次发送。请缩短后重试。",
             "terminalSafety.changed": "会话已更改。没有粘贴任何内容；请在目标会话中重试。"
         }
     };

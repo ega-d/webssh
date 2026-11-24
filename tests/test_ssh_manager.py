@@ -191,6 +191,72 @@ def test_output_snapshot_carries_a_monotone_sequence_watermark():
         ssh_manager.sessions.pop('session-1', None)
 
 
+@pytest.mark.parametrize('raises', [False, True])
+def test_incomplete_composer_frame_retires_the_live_ssh_channel(raises):
+    session_id = 'interrupted-composer'
+    frame = b'\x1b[200~fixture prompt\x1b[201~\r'
+    interrupted_at = len(b'\x1b[200~fi')
+
+    class InterruptedChannel:
+        attempts = []
+        closed = False
+
+        def send(self, payload):
+            self.attempts.append(payload)
+            if len(self.attempts) == 1:
+                return interrupted_at
+            if raises:
+                raise OSError('Fixture interrupted the channel write')
+            return 0
+
+        def close(self):
+            self.closed = True
+
+    channel = InterruptedChannel()
+    with ssh_manager.sessions_lock:
+        ssh_manager.sessions[session_id] = {
+            'connected': True, 'channel': channel, 'client': None,
+        }
+
+    assert ssh_manager.send_ssh_input(session_id, frame, require_complete=True) == (
+        False, "Session not connected",
+    )
+    assert channel.closed
+    assert ssh_manager.send_ssh_input(session_id, b'retry', require_complete=True) == (
+        False, "Session not found",
+    )
+    assert channel.attempts == [frame, frame[interrupted_at:]]
+    print(f'Partial frame stopped at byte {interrupted_at} with raises={raises}. The retired session accepted no retry.')
+
+
+def test_composer_rejection_before_progress_leaves_the_live_ssh_channel_available():
+    session_id = 'rejected-composer'
+    frame = b'\x1b[200~fixture prompt\x1b[201~\r'
+
+    class RejectingChannel:
+        closed = False
+
+        def send(self, _payload):
+            return 0
+
+        def close(self):
+            self.closed = True
+
+    channel = RejectingChannel()
+    with ssh_manager.sessions_lock:
+        ssh_manager.sessions[session_id] = {
+            'connected': True, 'channel': channel, 'client': None,
+            'host': 'fixture.example', 'port': 22, 'username': 'fixture',
+        }
+
+    assert ssh_manager.send_ssh_input(session_id, frame, require_complete=True) == (
+        False, "Failed to send SSH input",
+    )
+    assert not channel.closed
+    assert ssh_manager.get_session(session_id)['connected']
+    print('A refusal before the first byte preserved the live session.')
+
+
 def install_ssh_clients(monkeypatch, *connect_errors):
     clients = ClientList()
     opened_sockets = []
