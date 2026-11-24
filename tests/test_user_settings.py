@@ -44,8 +44,33 @@ def test_missing_user_settings_store_keeps_defaults(app):
             user_settings.get_user_settings(user_id)[
                 'authentication_session_duration_minutes'
             ]
-            == 30
+            == 1440
         )
+
+
+def test_returning_to_default_duration_keeps_settings_rollback_compatible(app):
+    import json
+    from app import user_settings
+    from app.models import User, db
+
+    user_id = _create_user(app)
+    key = 'authentication_session_duration_minutes'
+    with app.app_context():
+        path = db.session.get(User, user_id).get_data_dir() / 'settings.json'
+        path.write_text(json.dumps({
+            'schema_version': user_settings.CURRENT_STORAGE_VERSIONS['settings'], key: 30,
+        }), encoding='utf-8')
+        assert user_settings.save_user_settings(user_id, {'theme': 'noir'})
+        settings = json.loads(path.read_text(encoding='utf-8'))
+        print(f'Saved shorter preference after unrelated update: {settings[key]} minutes')
+        assert settings[key] == 30
+        assert user_settings.save_user_settings(user_id, {key: 1440})
+        stored = json.loads(path.read_text(encoding='utf-8'))
+        effective = user_settings.get_user_settings(user_id)
+        print(f'Restored default: on_disk={key in stored}, effective={effective[key]} minutes')
+        assert key not in stored
+        assert effective[key] == 1440
+        assert effective['theme'] == 'noir'
 
 
 def test_legacy_user_without_close_preference_keeps_confirmation_enabled(app):
@@ -153,7 +178,7 @@ def test_disconnect_session_action_rejects_unsupported_values(value):
     }) is False
 
 
-@pytest.mark.parametrize('value', [30, 60, 120, 240, 480])
+@pytest.mark.parametrize('value', [30, 60, 120, 240, 480, 1440])
 def test_authentication_session_duration_accepts_supported_values(value):
     from app import user_settings
 

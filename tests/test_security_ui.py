@@ -266,7 +266,7 @@ def test_directory_sync_preference_rejects_non_booleans(app, client, value):
         ),
         (
             "authentication_session_duration_minutes",
-            1440,
+            1441,
             "Invalid authentication session duration",
         ),
     ],

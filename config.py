@@ -752,7 +752,9 @@ else:
     SESSION_COOKIE_SECURE = not DEBUG
 # Flask applies this as the outer signature-validation window to every session
 # cookie. Per-user absolute expiry remains enforced by AuthenticationSession.
-PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+# The token remains bound to its login session, even in a long-open tab.
+WTF_CSRF_TIME_LIMIT = None
 
 REMEMBER_COOKIE_HTTPONLY = True
 REMEMBER_COOKIE_SAMESITE = 'Lax'
