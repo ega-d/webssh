@@ -150,11 +150,12 @@
                 <div class="admin-settings-row">
                     <div><label for="authenticationSessionDurationSelect"><strong data-i18n="settings.signInDuration">Sign-in duration</strong></label><p class="admin-muted" data-i18n="settings.signInDurationHint">A normal WebSSH sign-in expires after this time, even while an SSH session is active. This is separate from the SSH idle timeout. Changes apply to the next sign-in; Remember me continues to use seven days.</p></div>
                     <select id="authenticationSessionDurationSelect" class="form-control settings-preference-control">
-                        <option value="30" data-i18n="settings.duration30Minutes">30 minutes (default)</option>
+                        <option value="30" data-i18n="settings.duration30Minutes">30 minutes</option>
                         <option value="60" data-i18n="settings.duration1Hour">1 hour</option>
                         <option value="120" data-i18n="settings.duration2Hours">2 hours</option>
                         <option value="240" data-i18n="settings.duration4Hours">4 hours</option>
                         <option value="480" data-i18n="settings.duration8Hours">8 hours</option>
+                        <option value="1440" data-i18n="settings.duration24Hours" selected>24 hours (default)</option>
                     </select>
                 </div>
             </div>

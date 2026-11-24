@@ -346,13 +346,12 @@
             'authenticationSessionDurationSelect'
         );
         if (!select) { return; }
-        const allowed = new Set(['30', '60', '120', '240', '480']);
-        const initial = document.body.dataset.authenticationSessionDurationMinutes
-            || '30';
-        select.value = allowed.has(initial) ? initial : '30';
+        const allowed = new Set(Array.from(select.options, option => option.value));
+        const defaultDuration = select.value;
+        const initial = document.body.dataset.authenticationSessionDurationMinutes;
+        select.value = allowed.has(initial) ? initial : defaultDuration;
         select.addEventListener('change', async () => {
-            const previous = document.body.dataset.authenticationSessionDurationMinutes
-                || '30';
+            const previous = document.body.dataset.authenticationSessionDurationMinutes;
             const requested = select.value;
             select.disabled = true;
             setPreferenceStatus(t('settings.saving', 'Saving setting…'));
@@ -372,7 +371,7 @@
                     'Sign-in duration saved. It will apply at your next sign-in.'
                 ));
             } catch (error) {
-                select.value = allowed.has(previous) ? previous : '30';
+                select.value = allowed.has(previous) ? previous : defaultDuration;
                 setPreferenceStatus(error.message, true);
             } finally {
                 select.disabled = false;

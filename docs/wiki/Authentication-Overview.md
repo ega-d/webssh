@@ -42,10 +42,10 @@ sensitive action and target.
 
 ## Browser sign-in duration
 
-A normal WebSSH browser sign-in expires after 30 minutes by default, even while
+A normal WebSSH browser sign-in expires after 24 hours by default, even while
 an SSH session is active. This authentication lifetime is separate from the SSH
-idle timeout. Each user can select 30 minutes, 1 hour, 2 hours, 4 hours, or 8
-hours under **Settings → Preferences → Sign-in session**. The selected duration
+idle timeout. Each user can select 30 minutes, 1 hour, 2 hours, 4 hours, 8 hours,
+or 24 hours under **Settings → Preferences → Sign-in session**. The selected duration
 applies to the next sign-in and remains an absolute limit from that successful
 authentication.
 

@@ -61,7 +61,7 @@ test('account menu opens the Settings Center and persists close confirmation', a
     await expect(closeConfirmation).not.toBeChecked();
     const signInDuration = page.locator('#authenticationSessionDurationSelect');
     const initialDuration = await signInDuration.inputValue();
-    expect(['30', '60', '120', '240', '480']).toContain(initialDuration);
+    expect(['30', '60', '120', '240', '480', '1440']).toContain(initialDuration);
 
     await signInDuration.selectOption('120');
     await expect(signInDuration).not.toBeDisabled();
@@ -81,6 +81,11 @@ test('account menu opens the Settings Center and persists close confirmation', a
     await expect(signInDuration).toHaveValue('120');
     await closeConfirmation.uncheck();
     await expect(closeConfirmation).not.toBeDisabled();
+    await signInDuration.selectOption('1440');
+    await expect(page.locator('body')).toHaveAttribute(
+        'data-authentication-session-duration-minutes',
+        '1440',
+    );
     await signInDuration.selectOption(initialDuration);
     await expect(signInDuration).not.toBeDisabled();
 

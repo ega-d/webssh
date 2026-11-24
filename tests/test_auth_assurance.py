@@ -247,21 +247,17 @@ def test_non_remembered_login_uses_per_user_session_duration(app):
         assert row.expires_at - row.authenticated_at == timedelta(hours=8)
 
 
-def test_flask_cookie_window_covers_selected_session_duration(
+def test_login_and_cookie_window_cover_default_24_hour_session(
     app,
     client,
     monkeypatch,
 ):
     from itsdangerous import TimestampSigner
-    from app.user_settings import save_user_settings
+    from app.models import AuthenticationSession
 
-    user_id = _create_user(app, 'long_cookie_window')
-    with app.app_context():
-        assert save_user_settings(user_id, {
-            'authentication_session_duration_minutes': 480,
-        })
-
-    clock = {'now': 1_800_000_000}
+    _create_user(app, 'long_cookie_window')
+    signed_at = 1_800_000_000
+    clock = {'now': signed_at}
     monkeypatch.setattr(
         TimestampSigner,
         'get_timestamp',
@@ -272,12 +268,20 @@ def test_flask_cookie_window_covers_selected_session_duration(
         'password': 'password123',
     }).status_code == 302
 
-    clock['now'] += 31 * 60
-
-    response = client.get('/settings')
-
-    assert response.status_code == 200
-    assert b'data-authentication-session-duration-minutes="480"' in response.data
+    row = AuthenticationSession.query.one()
+    lifetime = row.expires_at - row.authenticated_at
+    print(f'New login lifetime: {lifetime}')
+    assert lifetime == timedelta(hours=24)
+    cookie = client.get_cookie(app.config['SESSION_COOKIE_NAME'])
+    for seconds, expected_status in ((23 * 3600, 200), (24 * 3600 + 1, 302)):
+        clock['now'] = signed_at + seconds
+        browser = app.test_client()
+        browser.set_cookie(cookie.key, cookie.value)
+        response = browser.get('/settings')
+        print(f'Original cookie age {seconds}s: HTTP {response.status_code}')
+        assert response.status_code == expected_status
+        if expected_status == 200:
+            assert b'data-authentication-session-duration-minutes="1440"' in response.data
 
 
 def test_corrupt_user_settings_fall_back_to_secure_default(
@@ -293,7 +297,7 @@ def test_corrupt_user_settings_fall_back_to_secure_default(
 
     monkeypatch.setattr(user_settings, 'get_user_settings', fail_to_load_settings)
     with app.test_request_context('/'):
-        assert _session_lifetime(False, 1) == timedelta(minutes=30)
+        assert _session_lifetime(False, 1) == timedelta(hours=24)
 
 
 def test_remembered_login_keeps_separate_remember_duration(app):
