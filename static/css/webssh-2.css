@@ -3202,6 +3202,7 @@ body[data-theme="paper"]:has(.auth-access-dock) {
 
 .notification-action {
     flex: 0 0 auto;
+    margin-inline-start: 0.5em;
     appearance: none;
     padding: 0;
     border: 0;
